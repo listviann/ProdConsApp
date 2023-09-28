@@ -1,70 +1,63 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace ProdConsApp;
 
-namespace ProdConsApp
+public class Consumer : IPCThreading
 {
-    public class Consumer : IPCThreading
+    private Mutex _mutex;
+    private Semaphore _semaphoreFull;
+    private Semaphore _semaphoreEmpty;
+    private bool _execFlag = true;
+    private bool _pauseFlag = false;
+    int timeToSleep = 1000;
+
+    public Consumer(Mutex mutex, Semaphore semaphoreFull, Semaphore semaphoreEmpty)
     {
-        private Mutex _mutex;
-        private Semaphore _semaphoreFull;
-        private Semaphore _semaphoreEmpty;
-        private bool _execFlag = true;
-        private bool _pauseFlag = false;
-        int timeToSleep = 1000;
+        _mutex = mutex;
+        _semaphoreFull = semaphoreFull;
+        _semaphoreEmpty = semaphoreEmpty;
+    }
 
-        public Consumer(Mutex mutex, Semaphore semaphoreFull, Semaphore semaphoreEmpty)
+    public void DoFaster()
+    {
+        if (timeToSleep > 100) timeToSleep -= 100;
+    }
+
+    public void DoSlower()
+    {
+        if (timeToSleep < 2000) timeToSleep += 100;
+    }
+
+    public void PauseThread() => _pauseFlag = true ? _pauseFlag == false : false;
+
+    public void Process(Queue<int> buffer)
+    {
+        while (_execFlag)
         {
-            _mutex = mutex;
-            _semaphoreFull = semaphoreFull;
-            _semaphoreEmpty = semaphoreEmpty;
-        }
-
-        public void DoFaster()
-        {
-            if (timeToSleep > 100) timeToSleep -= 100;
-        }
-
-        public void DoSlower()
-        {
-            if (timeToSleep < 2000) timeToSleep += 100;
-        }
-
-        public void PauseThread() => _pauseFlag = true ? _pauseFlag == false : false;
-
-        public void Process(Queue<int> buffer)
-        {
-            while (_execFlag)
+            if (!_pauseFlag)
             {
-                if (!_pauseFlag)
+                _semaphoreFull.WaitOne();
+                _mutex.WaitOne();
+
+                try
                 {
-                    _semaphoreFull.WaitOne();
-                    _mutex.WaitOne();
-
-                    try
+                    int data = buffer.Dequeue();
+                    Console.WriteLine($"Consume data at: {DateTime.Now}");
+                    foreach (var item in buffer)
                     {
-                        int data = buffer.Dequeue();
-                        Console.WriteLine($"Consume data at: {DateTime.Now}");
-                        foreach (var item in buffer)
-                        {
-                            Console.Write(item + " ");
-                        }
-                        Console.WriteLine();
+                        Console.Write(item + " ");
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("Empty buffer");
-                    }
-
-                    _mutex.ReleaseMutex();
-                    _semaphoreEmpty.Release();
-                    Thread.Sleep(timeToSleep);
+                    Console.WriteLine();
                 }
+                catch
+                {
+                    Console.WriteLine("Empty buffer");
+                }
+
+                _mutex.ReleaseMutex();
+                _semaphoreEmpty.Release();
+                Thread.Sleep(timeToSleep);
             }
         }
-
-        public void StopThread() => _execFlag = false;
     }
+
+    public void StopThread() => _execFlag = false;
 }
